@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Workout, PERSON_NAMES, PersonStats, LeaderboardEntry } from '@/types/workout'
-import { calculatePersonStats, calculateLeaderboard, getCumulativeWorkoutData } from '@/lib/workoutStats'
+import { calculatePersonStats, calculateLeaderboard, getCumulativeWorkoutData, calculateWorkoutStats } from '@/lib/workoutStats'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import { Trophy, Activity, Calendar, TrendingUp } from 'lucide-react'
 
@@ -12,7 +12,7 @@ interface ChartDataPoint {
 
 export default function Dashboard() {
   const [workouts, setWorkouts] = useState<Workout[]>([])
-  const [selectedPerson, setSelectedPerson] = useState<string>(PERSON_NAMES[0])
+  const [selectedPerson, setSelectedPerson] = useState<string>('All')
   const [personStats, setPersonStats] = useState<PersonStats | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [cumulativeData, setCumulativeData] = useState<ChartDataPoint[]>([])
@@ -24,7 +24,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (workouts.length > 0) {
-      const stats = calculatePersonStats(workouts, selectedPerson)
+      let stats: PersonStats
+      
+      if (selectedPerson === 'All') {
+        // Calculate aggregated stats for all users
+        const allStats = calculateWorkoutStats(workouts)
+        stats = {
+          ...allStats,
+          personName: 'All Users',
+        }
+      } else {
+        stats = calculatePersonStats(workouts, selectedPerson)
+      }
+      
       setPersonStats(stats)
       setLeaderboard(calculateLeaderboard(workouts))
       setCumulativeData(getCumulativeWorkoutData(workouts))
@@ -105,6 +117,7 @@ export default function Dashboard() {
             onChange={(e) => setSelectedPerson(e.target.value)}
             className="block w-64 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           >
+            <option value="All">All Users</option>
             {PERSON_NAMES.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -154,9 +167,14 @@ export default function Dashboard() {
               <div className="flex items-center">
                 <Trophy className="h-8 w-8 text-yellow-500" />
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Leaderboard Rank</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    {selectedPerson === 'All' ? 'Total Users' : 'Leaderboard Rank'}
+                  </p>
                   <p className="text-2xl font-bold text-gray-900">
-                    #{leaderboard.find(entry => entry.personName === selectedPerson)?.rank || 'N/A'}
+                    {selectedPerson === 'All' 
+                      ? PERSON_NAMES.length 
+                      : `#${leaderboard.find(entry => entry.personName === selectedPerson)?.rank || 'N/A'}`
+                    }
                   </p>
                 </div>
               </div>
@@ -194,7 +212,7 @@ export default function Dashboard() {
           {personStats && (
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {selectedPerson}&apos;s Workout Types
+                {selectedPerson === 'All' ? 'All Users\'' : `${selectedPerson}'s`} Workout Types
               </h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={Object.entries(personStats.workoutsByType).map(([type, count]) => ({ type, count }))}>
@@ -220,7 +238,9 @@ export default function Dashboard() {
                 <div
                   key={entry.personName}
                   className={`flex items-center justify-between p-4 rounded-lg ${
-                    entry.personName === selectedPerson ? 'bg-blue-50 border-2 border-blue-200' : 'bg-gray-50'
+                    entry.personName === selectedPerson && selectedPerson !== 'All' 
+                      ? 'bg-blue-50 border-2 border-blue-200' 
+                      : 'bg-gray-50'
                   }`}
                 >
                   <div className="flex items-center">
