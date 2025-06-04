@@ -9,10 +9,23 @@ export async function GET() {
     const SHEET_ID = process.env.GOOGLE_SHEET_ID
     const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Workouts'
     
+    // Decode the base64-encoded private key from Vercel environment
+    let privateKey = process.env.GOOGLE_PRIVATE_KEY
+    
+    // If the private key is base64 encoded (doesn't start with -----BEGIN), decode it
+    if (privateKey && !privateKey.startsWith('-----BEGIN')) {
+      try {
+        privateKey = Buffer.from(privateKey, 'base64').toString('utf8')
+      } catch (error) {
+        console.error('Error decoding base64 private key:', error)
+        throw new Error('Invalid private key format')
+      }
+    }
+    
     const auth = new google.auth.GoogleAuth({
       credentials: {
         client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY,
+        private_key: privateKey,
       },
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     })
