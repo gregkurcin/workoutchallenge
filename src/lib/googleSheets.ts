@@ -2,6 +2,8 @@ import { google } from 'googleapis'
 import { Workout, WorkoutType, calculateDayOfWeek } from '@/types/workout'
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID
+// Default to "Workouts" tab - this is the master data tab
+// The "Staging" tab is for manual bulk upload preparation and is not used by the app
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Workouts'
 
 // Initialize Google Sheets API
@@ -17,11 +19,12 @@ const getGoogleSheetsInstance = () => {
   return google.sheets({ version: 'v4', auth })
 }
 
+// Reads from the "Workouts" tab (master data) for dashboard display
 export const getWorkouts = async (): Promise<Workout[]> => {
   try {
     const sheets = getGoogleSheetsInstance()
     
-    // Updated to match user's sheet structure: personName, workoutType, startTime, endTime, duration, date
+    // Read from master data tab: personName, workoutType, startTime, endTime, duration, date
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A:F`,
@@ -49,11 +52,12 @@ export const getWorkouts = async (): Promise<Workout[]> => {
   }
 }
 
+// Writes to the "Workouts" tab (master data) for all app entries
 export const addWorkout = async (workout: Omit<Workout, 'dayOfWeek' | 'id'>): Promise<boolean> => {
   try {
     const sheets = getGoogleSheetsInstance()
     
-    // Format the values to match user's sheet structure: personName, workoutType, startTime, endTime, duration, date
+    // Add to master data tab: personName, workoutType, startTime, endTime, duration, date
     const values = [
       [
         workout.personName,

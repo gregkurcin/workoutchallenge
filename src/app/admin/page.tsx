@@ -61,6 +61,7 @@ export default function AdminPage() {
   const [allWorkouts, setAllWorkouts] = useState<Workout[]>([])
   const [filteredWorkouts, setFilteredWorkouts] = useState<Workout[]>([])
   const [isLoadingWorkouts, setIsLoadingWorkouts] = useState(false)
+  const [isLoadingFromSheets, setIsLoadingFromSheets] = useState(false)
   const [filters, setFilters] = useState({
     personName: '',
     workoutType: '',
@@ -104,6 +105,31 @@ export default function AdminPage() {
       setMessage('Error loading workout data')
     } finally {
       setIsLoadingWorkouts(false)
+    }
+  }
+
+  const loadFromGoogleSheets = async () => {
+    setIsLoadingFromSheets(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/workouts/google-sheets')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.workouts && data.workouts.length > 0) {
+          setAllWorkouts(data.workouts)
+          setMessage(`Successfully loaded ${data.workouts.length} workouts from Google Sheets Workouts tab!`)
+        } else {
+          setMessage('No workouts found in Google Sheets Workouts tab. Make sure your sheet has data and the correct column headers.')
+        }
+      } else {
+        const errorData = await response.json()
+        setMessage(`Failed to load from Google Sheets: ${errorData.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error loading from Google Sheets:', error)
+      setMessage('Error connecting to Google Sheets. Check your environment variables and setup.')
+    } finally {
+      setIsLoadingFromSheets(false)
     }
   }
 
@@ -1177,8 +1203,37 @@ Kyle	HIIT	16:31	17:27	0:56	1/13/2025`
             <>
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Data Management</h2>
               <p className="text-gray-600 mb-6">
-                View and manage all workouts.
+                View and manage all workouts. Load data from your Google Sheets &quot;Workouts&quot; tab or manage local data.
               </p>
+
+              {/* Google Sheets Integration */}
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-blue-900">Google Sheets Integration</h3>
+                    <p className="text-sm text-blue-700">
+                      Load workouts from your &quot;Workouts&quot; tab to test the connection
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadFromGoogleSheets}
+                    disabled={isLoadingFromSheets}
+                    className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoadingFromSheets ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Load from Google Sheets
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
 
               {/* Filter */}
               <div className="mb-6">
