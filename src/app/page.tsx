@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Workout, PERSON_NAMES, PersonStats, LeaderboardEntry } from '@/types/workout'
 import { calculatePersonStats, calculateLeaderboard, getCumulativeWorkoutData, calculateWorkoutStats } from '@/lib/workoutStats'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts'
-import { Trophy, Activity, Calendar, TrendingUp } from 'lucide-react'
+import { Trophy, Activity, Calendar, TrendingUp, AlertCircle } from 'lucide-react'
 
 interface ChartDataPoint {
   [key: string]: string | number
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [cumulativeData, setCumulativeData] = useState<ChartDataPoint[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchWorkouts()
@@ -24,32 +25,51 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (workouts.length > 0) {
-      let stats: PersonStats
-      
-      if (selectedPerson === 'All') {
-        // Calculate aggregated stats for all users
-        const allStats = calculateWorkoutStats(workouts)
-        stats = {
-          ...allStats,
-          personName: 'All Users',
+      try {
+        let stats: PersonStats
+        
+        if (selectedPerson === 'All') {
+          // Calculate aggregated stats for all users
+          const allStats = calculateWorkoutStats(workouts)
+          stats = {
+            ...allStats,
+            personName: 'All Users',
+          }
+        } else {
+          stats = calculatePersonStats(workouts, selectedPerson)
         }
-      } else {
-        stats = calculatePersonStats(workouts, selectedPerson)
+        
+        setPersonStats(stats)
+        setLeaderboard(calculateLeaderboard(workouts))
+        setCumulativeData(getCumulativeWorkoutData(workouts))
+        setError(null) // Clear any previous errors
+      } catch (error) {
+        console.error('Error calculating stats:', error)
+        setError('Error processing workout data. Please try refreshing the page.')
       }
-      
-      setPersonStats(stats)
-      setLeaderboard(calculateLeaderboard(workouts))
-      setCumulativeData(getCumulativeWorkoutData(workouts))
     }
   }, [workouts, selectedPerson])
 
   const fetchWorkouts = async () => {
     try {
+      setError(null)
       const response = await fetch('/api/workouts')
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
       const data = await response.json()
+      
+      // Validate that data is an array
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid data format received from API')
+      }
+      
       setWorkouts(data)
     } catch (error) {
       console.error('Error fetching workouts:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load workout data')
     } finally {
       setLoading(false)
     }
@@ -65,6 +85,28 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-xl">Loading workout data...</div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="max-w-md mx-auto text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Data</h3>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button
+            onClick={() => {
+              setLoading(true)
+              fetchWorkouts()
+            }}
+            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     )
   }
@@ -128,7 +170,7 @@ export default function Dashboard() {
 
         {/* Stats Cards */}
         {personStats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
                 <Activity className="h-8 w-8 text-blue-500" />
@@ -145,7 +187,7 @@ export default function Dashboard() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">This Month</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {Object.values(personStats.workoutsByMonth).reduce((a, b) => a + b, 0)}
+                    {Object.values(personStats.workoutsByMonth || {}).reduce((a, b) => a + b, 0)}
                   </p>
                 </div>
               </div>
@@ -157,7 +199,7 @@ export default function Dashboard() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Favorite Type</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {Object.entries(personStats.workoutsByType).sort(([,a], [,b]) => b - a)[0]?.[0] || 'N/A'}
+                    {Object.entries(personStats.workoutsByType || {}).sort(([,a], [,b]) => b - a)[0]?.[0] || 'N/A'}
                   </p>
                 </div>
               </div>
@@ -175,6 +217,30 @@ export default function Dashboard() {
                       ? PERSON_NAMES.length 
                       : `#${leaderboard.find(entry => entry.personName === selectedPerson)?.rank || 'N/A'}`
                     }
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <Activity className="h-8 w-8 text-indigo-500" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Time</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {Math.floor(personStats.totalDuration / 60)}h {Math.round(personStats.totalDuration % 60)}m
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <TrendingUp className="h-8 w-8 text-orange-500" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Avg Duration</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {Math.round(personStats.averageDuration)}m
                   </p>
                 </div>
               </div>
@@ -215,7 +281,7 @@ export default function Dashboard() {
                 {selectedPerson === 'All' ? 'All Users\'' : `${selectedPerson}'s`} Workout Types
               </h3>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={Object.entries(personStats.workoutsByType).map(([type, count]) => ({ type, count }))}>
+                <BarChart data={Object.entries(personStats.workoutsByType || {}).map(([type, count]) => ({ type, count }))}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="type" />
                   <YAxis />

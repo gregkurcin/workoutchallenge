@@ -6,6 +6,37 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID
 // The "Staging" tab is for manual bulk upload preparation and is not used by the app
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Workouts'
 
+// Helper function to parse duration in H:MM format to decimal minutes
+const parseDuration = (duration: string | number): number => {
+  // If it's already a number, return it
+  if (typeof duration === 'number') {
+    return duration
+  }
+  
+  // If it's a string, try to parse H:MM format
+  if (typeof duration === 'string') {
+    const trimmed = duration.trim()
+    
+    // Check if it's in H:MM or HH:MM format
+    const timeMatch = trimmed.match(/^(\d{1,2}):(\d{2})$/)
+    if (timeMatch) {
+      const hours = parseInt(timeMatch[1], 10)
+      const minutes = parseInt(timeMatch[2], 10)
+      return hours * 60 + minutes
+    }
+    
+    // Try to parse as a plain number
+    const numericValue = parseFloat(trimmed)
+    if (!isNaN(numericValue)) {
+      return numericValue
+    }
+  }
+  
+  // Default fallback
+  console.warn(`Could not parse duration: ${duration}`)
+  return 0
+}
+
 // Initialize Google Sheets API
 const getGoogleSheetsInstance = () => {
   // Decode the base64-encoded private key from Vercel environment
@@ -80,13 +111,17 @@ export const getWorkouts = async (): Promise<Workout[]> => {
     // Skip header row and map data to match user's sheet structure
     const workouts = rows.slice(1).map((row, index): Workout => {
       console.log(`Processing row ${index}:`, row)
+      const durationValue = row[4] || '0'
+      const parsedDuration = parseDuration(durationValue)
+      console.log(`Duration parsing: "${durationValue}" -> ${parsedDuration} minutes`)
+      
       return {
         id: `workout-${index}`,
         personName: row[0] || '',
         workoutType: (row[1] as WorkoutType) || 'Gym',
         startTime: row[2] || '',
         endTime: row[3] || '',
-        duration: parseInt(row[4]) || 0,
+        duration: parsedDuration,
         date: row[5] || '',
         dayOfWeek: row[5] ? calculateDayOfWeek(row[5]) : '', // Calculate from date
       }

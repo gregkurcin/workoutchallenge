@@ -16,6 +16,8 @@ export interface WorkoutStats {
   workoutsByQuarter: { [quarter: string]: number }
   workoutsByYear: { [year: string]: number }
   workoutsByType: { [type: string]: number }
+  totalDuration: number
+  averageDuration: number
 }
 
 export interface PersonStats extends WorkoutStats {
