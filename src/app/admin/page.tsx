@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { PERSON_NAMES, WORKOUT_TYPES, WorkoutType, PersonName } from '@/types/workout'
-import { LogOut, Save, Camera, Upload, Sparkles, Edit3, FileSpreadsheet, Download, Eye, EyeOff } from 'lucide-react'
+import { PERSON_NAMES, WORKOUT_TYPES, WorkoutType, PersonName, Workout } from '@/types/workout'
+import { LogOut, Save, Camera, Upload, Sparkles, Edit3, FileSpreadsheet, Download, Eye, EyeOff, Database } from 'lucide-react'
 
 interface AIWorkoutData {
   workoutType: WorkoutType
@@ -31,7 +31,7 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [activeTab, setActiveTab] = useState<'manual' | 'image' | 'csv'>('manual')
+  const [activeTab, setActiveTab] = useState<'manual' | 'image' | 'csv' | 'data'>('manual')
   const [formData, setFormData] = useState({
     personName: PERSON_NAMES[0] as PersonName,
     workoutType: WORKOUT_TYPES[0] as WorkoutType,
@@ -56,6 +56,176 @@ export default function AdminPage() {
   const [isProcessingCSV, setIsProcessingCSV] = useState(false)
   const [showCSVPreview, setShowCSVPreview] = useState(false)
   const [csvStats, setCsvStats] = useState({ valid: 0, invalid: 0, total: 0 })
+
+  // Data management states
+  const [allWorkouts, setAllWorkouts] = useState<Workout[]>([])
+  const [filteredWorkouts, setFilteredWorkouts] = useState<Workout[]>([])
+  const [isLoadingWorkouts, setIsLoadingWorkouts] = useState(false)
+  const [filters, setFilters] = useState({
+    personName: '',
+    workoutType: '',
+    date: '',
+    search: ''
+  })
+  const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null)
+  const [editFormData, setEditFormData] = useState<Partial<Workout>>({})
+
+  // Load all workouts when data tab is active
+  useEffect(() => {
+    if (activeTab === 'data' && isAuthenticated) {
+      loadAllWorkouts()
+    }
+  }, [activeTab, isAuthenticated])
+
+  // Filter workouts when filters change
+  useEffect(() => {
+    filterWorkouts()
+  }, [allWorkouts, filters]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadAllWorkouts = async () => {
+    setIsLoadingWorkouts(true)
+    try {
+      const response = await fetch('/api/workouts')
+      if (response.ok) {
+        const data = await response.json()
+        // Add IDs to workouts if they don't have them (for demo mode)
+        const workoutsWithIds = (data.workouts || data || []).map((workout: Workout, index: number) => ({
+          ...workout,
+          id: workout.id || `workout-${index}`,
+          startTime: workout.startTime || '09:00',
+          endTime: workout.endTime || '10:00'
+        }))
+        setAllWorkouts(workoutsWithIds)
+      } else {
+        setMessage('Failed to load workout data')
+      }
+    } catch (error) {
+      console.error('Error loading workouts:', error)
+      setMessage('Error loading workout data')
+    } finally {
+      setIsLoadingWorkouts(false)
+    }
+  }
+
+  const filterWorkouts = () => {
+    let filtered = [...allWorkouts]
+
+    if (filters.personName) {
+      filtered = filtered.filter(w => w.personName === filters.personName)
+    }
+    if (filters.workoutType) {
+      filtered = filtered.filter(w => w.workoutType === filters.workoutType)
+    }
+    if (filters.date) {
+      filtered = filtered.filter(w => w.date === filters.date)
+    }
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase()
+      filtered = filtered.filter(w => 
+        w.personName.toLowerCase().includes(searchLower) ||
+        w.workoutType.toLowerCase().includes(searchLower) ||
+        w.date.includes(searchLower) ||
+        (w.name && w.name.toLowerCase().includes(searchLower))
+      )
+    }
+
+    setFilteredWorkouts(filtered)
+  }
+
+  const startEditWorkout = (workout: Workout) => {
+    setEditingWorkout(workout)
+    setEditFormData({
+      personName: workout.personName,
+      workoutType: workout.workoutType,
+      startTime: workout.startTime,
+      endTime: workout.endTime,
+      duration: workout.duration,
+      date: workout.date,
+      name: workout.name
+    })
+  }
+
+  const cancelEdit = () => {
+    setEditingWorkout(null)
+    setEditFormData({})
+  }
+
+  const saveEditWorkout = async () => {
+    if (!editingWorkout) return
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`/api/workouts/${editingWorkout.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editFormData),
+      })
+
+      if (response.ok) {
+        setMessage('Workout updated successfully!')
+        loadAllWorkouts()
+        cancelEdit()
+      } else {
+        setMessage('Failed to update workout')
+      }
+    } catch (error) {
+      console.error('Error updating workout:', error)
+      setMessage('Error updating workout')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const deleteWorkout = async (workoutId: string) => {
+    if (!confirm('Are you sure you want to delete this workout?')) return
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`/api/workouts/${workoutId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        setMessage('Workout deleted successfully!')
+        loadAllWorkouts()
+      } else {
+        setMessage('Failed to delete workout')
+      }
+    } catch (error) {
+      console.error('Error deleting workout:', error)
+      setMessage('Error deleting workout')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const calculateDuration = (startTime: string, endTime: string): number => {
+    if (!startTime || !endTime) return 0
+    
+    const [startHour, startMin] = startTime.split(':').map(Number)
+    const [endHour, endMin] = endTime.split(':').map(Number)
+    
+    const startMinutes = startHour * 60 + startMin
+    const endMinutes = endHour * 60 + endMin
+    
+    return endMinutes - startMinutes
+  }
+
+  const handleEditTimeChange = (field: 'startTime' | 'endTime', value: string) => {
+    const newEditData = { ...editFormData, [field]: value }
+    
+    if (field === 'startTime' || field === 'endTime') {
+      const duration = calculateDuration(
+        field === 'startTime' ? value : editFormData.startTime || '',
+        field === 'endTime' ? value : editFormData.endTime || ''
+      )
+      newEditData.duration = duration
+    }
+    
+    setEditFormData(newEditData)
+  }
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -312,19 +482,6 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
     }
   }
 
-  // Calculate duration from start and end times
-  const calculateDuration = (startTime: string, endTime: string): number => {
-    if (!startTime || !endTime) return 0
-    
-    const [startHour, startMin] = startTime.split(':').map(Number)
-    const [endHour, endMin] = endTime.split(':').map(Number)
-    
-    const startMinutes = startHour * 60 + startMin
-    const endMinutes = endHour * 60 + endMin
-    
-    return endMinutes - startMinutes
-  }
-
   // Update duration when start or end time changes
   const handleTimeChange = (field: 'startTime' | 'endTime', value: string) => {
     const newFormData = { ...formData, [field]: value }
@@ -516,6 +673,17 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
               >
                 <FileSpreadsheet className="h-4 w-4 inline mr-2" />
                 CSV Bulk Upload
+              </button>
+              <button
+                onClick={() => setActiveTab('data')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'data'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Database className="h-4 w-4 inline mr-2" />
+                Data Management
               </button>
             </nav>
           </div>
@@ -779,7 +947,7 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
                 </div>
               )}
             </>
-          ) : (
+          ) : activeTab === 'csv' ? (
             <>
               <h2 className="text-xl font-semibold text-gray-900 mb-6">CSV Bulk Upload</h2>
               <p className="text-gray-600 mb-6">
@@ -969,6 +1137,226 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
                       Start Over
                     </button>
                   </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Data Management</h2>
+              <p className="text-gray-600 mb-6">
+                View and manage all workouts.
+              </p>
+
+              {/* Filter */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Filter Workouts
+                </label>
+                <div className="flex space-x-4">
+                  <select
+                    value={filters.personName}
+                    onChange={(e) => setFilters({ ...filters, personName: e.target.value })}
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">All Persons</option>
+                    {PERSON_NAMES.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={filters.workoutType}
+                    onChange={(e) => setFilters({ ...filters, workoutType: e.target.value })}
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">All Types</option>
+                    {WORKOUT_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={filters.date}
+                    onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">All Dates</option>
+                    {/* Add date options here */}
+                  </select>
+                  <input
+                    type="text"
+                    value={filters.search}
+                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                    placeholder="Search"
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Workouts Table */}
+              {isLoadingWorkouts ? (
+                <div className="text-center">Loading workouts...</div>
+              ) : (
+                <div className="border border-gray-200 rounded-md overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-900">Workouts</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Person</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {filteredWorkouts.map((workout) => (
+                          <tr key={workout.id}>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{workout.id}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{workout.personName}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{workout.workoutType}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{workout.duration}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{workout.date}</td>
+                            <td className="px-3 py-2 text-sm text-gray-500">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => startEditWorkout(workout)}
+                                  className="text-blue-600 hover:text-blue-900"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => workout.id && deleteWorkout(workout.id)}
+                                  className="text-red-600 hover:text-red-900"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Edit Workout Modal */}
+              {editingWorkout && (
+                <div className="mt-6 p-4 bg-white rounded-md">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Workout</h3>
+                  <form onSubmit={saveEditWorkout} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Person
+                        </label>
+                        <select
+                          value={editFormData.personName}
+                          onChange={(e) => setEditFormData({ ...editFormData, personName: e.target.value as PersonName })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          {PERSON_NAMES.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Workout Type
+                        </label>
+                        <select
+                          value={editFormData.workoutType}
+                          onChange={(e) => setEditFormData({ ...editFormData, workoutType: e.target.value as WorkoutType })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          {WORKOUT_TYPES.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Duration (minutes)
+                        </label>
+                        <input
+                          type="number"
+                          value={editFormData.duration}
+                          onChange={(e) => setEditFormData({ ...editFormData, duration: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                          min="1"
+                          readOnly
+                          placeholder="Calculated automatically"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Date
+                        </label>
+                        <input
+                          type="date"
+                          value={editFormData.date}
+                          onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Start Time
+                      </label>
+                      <input
+                        type="time"
+                        value={editFormData.startTime}
+                        onChange={(e) => handleEditTimeChange('startTime', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        End Time
+                      </label>
+                      <input
+                        type="time"
+                        value={editFormData.endTime}
+                        onChange={(e) => handleEditTimeChange('endTime', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Updating Workout...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Update Workout
+                        </>
+                      )}
+                    </button>
+                  </form>
                 </div>
               )}
             </>

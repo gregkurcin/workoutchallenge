@@ -1,10 +1,13 @@
 export interface Workout {
+  id?: string
   dayOfWeek: string
   personName: string
   workoutType: 'Gym' | 'HIIT' | 'Cardio' | 'Activity'
   duration: number
   date: string
   name?: string
+  startTime?: string
+  endTime?: string
 }
 
 export interface WorkoutStats {
