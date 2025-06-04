@@ -57,6 +57,36 @@ export default function Dashboard() {
     )
   }
 
+  // Empty state when no workouts exist
+  if (workouts.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          <header className="mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">Workout Challenge Dashboard</h1>
+            <p className="text-gray-600">Track your fitness journey and compete with friends</p>
+          </header>
+          
+          <div className="bg-white rounded-lg shadow p-12 text-center">
+            <Activity className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No workouts yet!</h3>
+            <p className="text-gray-600 mb-6">
+              Get started by adding your first workout. Use the admin panel to add workouts manually, 
+              with AI image processing, or bulk upload via CSV.
+            </p>
+            <a
+              href="/admin"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Activity className="h-5 w-5 mr-2" />
+              Add Your First Workout
+            </a>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
