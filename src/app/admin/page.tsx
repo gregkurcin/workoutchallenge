@@ -124,8 +124,7 @@ export default function AdminPage() {
       filtered = filtered.filter(w => 
         w.personName.toLowerCase().includes(searchLower) ||
         w.workoutType.toLowerCase().includes(searchLower) ||
-        w.date.includes(searchLower) ||
-        (w.name && w.name.toLowerCase().includes(searchLower))
+        w.date.includes(searchLower)
       )
     }
 
@@ -140,8 +139,7 @@ export default function AdminPage() {
       startTime: workout.startTime,
       endTime: workout.endTime,
       duration: workout.duration,
-      date: workout.date,
-      name: workout.name
+      date: workout.date
     })
   }
 

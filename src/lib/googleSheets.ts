@@ -1,5 +1,5 @@
 import { google } from 'googleapis'
-import { Workout, WorkoutType } from '@/types/workout'
+import { Workout, WorkoutType, calculateDayOfWeek } from '@/types/workout'
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Workouts'
@@ -21,9 +21,10 @@ export const getWorkouts = async (): Promise<Workout[]> => {
   try {
     const sheets = getGoogleSheetsInstance()
     
+    // Updated to match user's sheet structure: personName, workoutType, startTime, endTime, duration, date
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A:F`, // Assuming columns A-F contain the data
+      range: `${SHEET_NAME}!A:F`,
     })
 
     const rows = response.data.values
@@ -31,14 +32,16 @@ export const getWorkouts = async (): Promise<Workout[]> => {
       return []
     }
 
-    // Skip header row and map data
-    return rows.slice(1).map((row): Workout => ({
-      dayOfWeek: row[0] || '',
-      personName: row[1] || '',
-      workoutType: (row[2] as WorkoutType) || 'Gym',
-      duration: parseInt(row[3]) || 0,
-      date: row[4] || '',
-      name: row[5] || '',
+    // Skip header row and map data to match user's sheet structure
+    return rows.slice(1).map((row, index): Workout => ({
+      id: `workout-${index}`,
+      personName: row[0] || '',
+      workoutType: (row[1] as WorkoutType) || 'Gym',
+      startTime: row[2] || '',
+      endTime: row[3] || '',
+      duration: parseInt(row[4]) || 0,
+      date: row[5] || '',
+      dayOfWeek: row[5] ? calculateDayOfWeek(row[5]) : '', // Calculate from date
     }))
   } catch (error) {
     console.error('Error fetching workouts:', error)
@@ -46,22 +49,19 @@ export const getWorkouts = async (): Promise<Workout[]> => {
   }
 }
 
-export const addWorkout = async (workout: Omit<Workout, 'dayOfWeek'>): Promise<boolean> => {
+export const addWorkout = async (workout: Omit<Workout, 'dayOfWeek' | 'id'>): Promise<boolean> => {
   try {
     const sheets = getGoogleSheetsInstance()
     
-    // Get day of week from date
-    const date = new Date(workout.date)
-    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' })
-    
+    // Format the values to match user's sheet structure: personName, workoutType, startTime, endTime, duration, date
     const values = [
       [
-        dayOfWeek,
         workout.personName,
         workout.workoutType,
+        workout.startTime || '',
+        workout.endTime || '',
         workout.duration,
         workout.date,
-        workout.name || '',
       ],
     ]
 
