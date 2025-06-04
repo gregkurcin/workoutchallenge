@@ -1,13 +1,33 @@
 import { NextResponse } from 'next/server'
 import { getWorkouts } from '@/lib/googleSheets'
+import { google } from 'googleapis'
 
 export async function GET() {
   try {
+    // First, let's get the raw data directly to debug
+    const SHEET_ID = process.env.GOOGLE_SHEET_ID
+    const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Workouts'
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    })
+
+    const sheets = google.sheets({ version: 'v4', auth })
+    
+    // Get raw data for debugging
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${SHEET_NAME}!A:F`,
+    })
+
+    const rawRows = response.data.values
+    
     // Load workouts from Google Sheets "Workouts" tab
     const workouts = await getWorkouts()
-    
-    // Add debugging information
-    console.log('Raw workouts from Google Sheets:', JSON.stringify(workouts, null, 2))
     
     return NextResponse.json({
       success: true,
@@ -15,7 +35,11 @@ export async function GET() {
       message: `Loaded ${workouts.length} workouts from Google Sheets`,
       debug: {
         totalWorkouts: workouts.length,
-        firstWorkout: workouts[0] || null
+        firstWorkout: workouts[0] || null,
+        rawData: rawRows,
+        sheetId: SHEET_ID,
+        sheetName: SHEET_NAME,
+        numberOfRawRows: rawRows?.length || 0
       }
     })
   } catch (error) {
@@ -42,7 +66,11 @@ export async function GET() {
       { 
         success: false, 
         error: errorMessage,
-        workouts: []
+        workouts: [],
+        debug: {
+          sheetId: process.env.GOOGLE_SHEET_ID,
+          sheetName: process.env.GOOGLE_SHEET_NAME || 'Workouts'
+        }
       },
       { status: 500 }
     )
