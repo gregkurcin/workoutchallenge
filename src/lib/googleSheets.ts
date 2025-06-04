@@ -11,15 +11,40 @@ const getGoogleSheetsInstance = () => {
   // Decode the base64-encoded private key from Vercel environment
   let privateKey = process.env.GOOGLE_PRIVATE_KEY
   
+  console.log('Original private key format check:', {
+    hasKey: !!privateKey,
+    startsWithBegin: privateKey?.startsWith('-----BEGIN'),
+    length: privateKey?.length,
+    firstChars: privateKey?.substring(0, 20)
+  })
+  
   // If the private key is base64 encoded (doesn't start with -----BEGIN), decode it
   if (privateKey && !privateKey.startsWith('-----BEGIN')) {
     try {
       privateKey = Buffer.from(privateKey, 'base64').toString('utf8')
+      console.log('Decoded base64 private key:', {
+        startsWithBegin: privateKey.startsWith('-----BEGIN'),
+        endsWithEnd: privateKey.endsWith('-----END PRIVATE KEY-----'),
+        length: privateKey.length
+      })
     } catch (error) {
       console.error('Error decoding base64 private key:', error)
       throw new Error('Invalid private key format')
     }
   }
+  
+  // Handle escaped newlines
+  if (privateKey && privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n')
+    console.log('Processed escaped newlines in private key')
+  }
+  
+  console.log('Final private key validation:', {
+    startsWithBegin: privateKey?.startsWith('-----BEGIN'),
+    endsWithEnd: privateKey?.endsWith('-----END PRIVATE KEY-----'),
+    hasNewlines: privateKey?.includes('\n'),
+    lineCount: privateKey?.split('\n').length
+  })
   
   const auth = new google.auth.GoogleAuth({
     credentials: {
