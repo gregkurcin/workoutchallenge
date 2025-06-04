@@ -8,10 +8,27 @@ const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Workouts'
 
 // Initialize Google Sheets API
 const getGoogleSheetsInstance = () => {
+  let privateKey = process.env.GOOGLE_PRIVATE_KEY
+  
+  // Handle different private key formats
+  if (privateKey) {
+    // Replace literal \n with actual newlines
+    privateKey = privateKey.replace(/\\n/g, '\n')
+    
+    // If it's base64 encoded, decode it
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      try {
+        privateKey = Buffer.from(privateKey, 'base64').toString('utf8')
+      } catch (e) {
+        console.error('Failed to decode base64 private key:', e)
+      }
+    }
+  }
+
   const auth = new google.auth.GoogleAuth({
     credentials: {
       client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      private_key: privateKey,
     },
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   })
