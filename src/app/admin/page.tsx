@@ -115,12 +115,12 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
     const errors: string[] = []
     
     // Validate person name
-    if (!row.personName || !PERSON_NAMES.includes(row.personName)) {
+    if (!row.personName || !PERSON_NAMES.includes(row.personName as PersonName)) {
       errors.push(`Invalid person name: ${row.personName}`)
     }
     
     // Validate workout type
-    if (!row.workoutType || !WORKOUT_TYPES.includes(row.workoutType)) {
+    if (!row.workoutType || !WORKOUT_TYPES.includes(row.workoutType as WorkoutType)) {
       errors.push(`Invalid workout type: ${row.workoutType}`)
     }
     
@@ -148,8 +148,8 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
     }
 
     return {
-      personName: row.personName || '',
-      workoutType: row.workoutType || 'Activity',
+      personName: row.personName as PersonName || '',
+      workoutType: row.workoutType as WorkoutType || 'Activity',
       startTime: row.startTime || '',
       endTime: row.endTime || '',
       duration: duration || 0,
@@ -372,7 +372,7 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
         setMessage('Failed to add workout. Please try again.')
       }
     } catch {
-      console.error('Error adding workout:', err)
+      console.error('Error adding workout')
       setMessage('Error adding workout. Please try again.')
     } finally {
       setIsSubmitting(false)
@@ -412,7 +412,7 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
         setMessage('Failed to add workout. Please try again.')
       }
     } catch {
-      console.error('Error adding workout:', err)
+      console.error('Error adding workout')
       setMessage('Error adding workout. Please try again.')
     } finally {
       setIsSubmitting(false)
