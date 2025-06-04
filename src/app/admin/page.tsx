@@ -277,11 +277,11 @@ export default function AdminPage() {
   }
 
   const downloadCSVTemplate = () => {
-    const csvContent = `personName,workoutType,startTime,endTime,duration,date
-Greg,Gym,09:00:00,09:45:00,45,2024-01-15
-Cortese,HIIT,18:00:00,18:30:00,30,2024-01-15
-Greg,Cardio,07:00:00,08:00:00,60,2024-01-16
-Cortese,Activity,12:00:00,12:25:00,25,2024-01-16`
+    const csvContent = `personName	workoutType	startTime	endTime	duration	date
+Greg	Gym	7:16	8:28	1:12	1/10/2025
+Cortese	Gym	20:47	21:40	0:53	1/13/2025
+JP	Cardio	21:12	21:51	0:39	1/8/2025
+Kyle	HIIT	16:31	17:27	0:56	1/13/2025`
 
     const blob = new Blob([csvContent], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
@@ -307,38 +307,43 @@ Cortese,Activity,12:00:00,12:25:00,25,2024-01-16`
       errors.push(`Workout type is required`)
     }
     
-    // Validate start time (HH:MM:SS format)
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/
-    if (!row.startTime || !timeRegex.test(row.startTime)) {
-      errors.push(`Invalid start time: ${row.startTime} (use HH:MM:SS format, e.g., 09:00:00)`)
+    // Validate start time (H:MM or HH:MM format)
+    const timeRegex = /^([0-9]|[01]?[0-9]|2[0-3]):[0-5][0-9]$/
+    if (!row.startTime || !timeRegex.test(row.startTime.trim())) {
+      errors.push(`Invalid start time: ${row.startTime} (use H:MM or HH:MM format, e.g., 7:16 or 20:47)`)
     }
     
-    // Validate end time (HH:MM:SS format)
-    if (!row.endTime || !timeRegex.test(row.endTime)) {
-      errors.push(`Invalid end time: ${row.endTime} (use HH:MM:SS format, e.g., 10:30:00)`)
+    // Validate end time (H:MM or HH:MM format)
+    if (!row.endTime || !timeRegex.test(row.endTime.trim())) {
+      errors.push(`Invalid end time: ${row.endTime} (use H:MM or HH:MM format, e.g., 8:28 or 21:40)`)
     }
     
-    // Validate duration (plain text - any value allowed)
-    if (!row.duration || row.duration.trim() === '') {
-      errors.push(`Duration is required`)
+    // Validate duration (H:MM format)
+    const durationRegex = /^([0-9]|[0-9][0-9]):[0-5][0-9]$/
+    if (!row.duration || !durationRegex.test(row.duration.trim())) {
+      errors.push(`Invalid duration: ${row.duration} (use H:MM format, e.g., 0:53 or 1:12)`)
     }
     
-    // Validate date
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-    if (!row.date || !dateRegex.test(row.date)) {
-      errors.push(`Invalid date format: ${row.date} (use YYYY-MM-DD)`)
+    // Validate date (M/D/YYYY format)
+    const dateRegex = /^(1[0-2]|[1-9])\/(3[01]|[12][0-9]|[1-9])\/\d{4}$/
+    if (!row.date || !dateRegex.test(row.date.trim())) {
+      errors.push(`Invalid date format: ${row.date} (use M/D/YYYY format, e.g., 1/13/2025)`)
     }
 
-    // Convert duration to number for internal use, but keep original as string
-    const durationNum = parseInt(row.duration) || 0
+    // Convert duration from H:MM to minutes
+    let durationMinutes = 0
+    if (row.duration && durationRegex.test(row.duration.trim())) {
+      const [hours, minutes] = row.duration.trim().split(':').map(Number)
+      durationMinutes = hours * 60 + minutes
+    }
 
     return {
       personName: row.personName?.trim() as PersonName || '',
       workoutType: row.workoutType?.trim() as WorkoutType || 'Activity',
-      startTime: row.startTime || '',
-      endTime: row.endTime || '',
-      duration: durationNum,
-      date: row.date || '',
+      startTime: row.startTime?.trim() || '',
+      endTime: row.endTime?.trim() || '',
+      duration: durationMinutes,
+      date: row.date?.trim() || '',
       isValid: errors.length === 0,
       errors
     }
@@ -352,6 +357,10 @@ Cortese,Activity,12:00:00,12:25:00,25,2024-01-16`
 
     try {
       const text = await selectedCSV.text()
+      // Handle both tab-separated and comma-separated values
+      const isTabSeparated = text.includes('\t')
+      const separator = isTabSeparated ? '\t' : ','
+      
       const lines = text.split('\n').filter(line => line.trim())
       
       if (lines.length < 2) {
@@ -360,7 +369,7 @@ Cortese,Activity,12:00:00,12:25:00,25,2024-01-16`
         return
       }
 
-      const headers = lines[0].split(',').map(h => h.trim())
+      const headers = lines[0].split(separator).map(h => h.trim())
       const expectedHeaders = ['personName', 'workoutType', 'startTime', 'endTime', 'duration', 'date']
       
       const missingHeaders = expectedHeaders.filter(h => !headers.includes(h))
@@ -373,7 +382,7 @@ Cortese,Activity,12:00:00,12:25:00,25,2024-01-16`
       const workouts: CSVWorkout[] = []
       
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim())
+        const values = lines[i].split(separator).map(v => v.trim())
         const row: Record<string, string> = {}
         
         headers.forEach((header, index) => {
@@ -420,6 +429,16 @@ Cortese,Activity,12:00:00,12:25:00,25,2024-01-16`
 
       for (const workout of validWorkouts) {
         try {
+          // Convert M/D/YYYY to YYYY-MM-DD for API
+          const [month, day, year] = workout.date.split('/')
+          const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+          
+          // Convert H:MM to HH:MM:SS for API
+          const formatTime = (time: string) => {
+            const [hour, minute] = time.split(':')
+            return `${hour.padStart(2, '0')}:${minute}:00`
+          }
+
           const response = await fetch('/api/workouts/add', {
             method: 'POST',
             headers: {
@@ -428,10 +447,10 @@ Cortese,Activity,12:00:00,12:25:00,25,2024-01-16`
             body: JSON.stringify({
               personName: workout.personName,
               workoutType: workout.workoutType,
-              startTime: workout.startTime,
-              endTime: workout.endTime,
+              startTime: formatTime(workout.startTime),
+              endTime: formatTime(workout.endTime),
               duration: workout.duration,
-              date: workout.date,
+              date: formattedDate,
             }),
           })
 
@@ -989,9 +1008,10 @@ Cortese,Activity,12:00:00,12:25:00,25,2024-01-16`
                   <strong>Required columns:</strong> personName, workoutType, startTime, endTime, duration, date<br/>
                   <strong>Person names:</strong> Any plain text (e.g., Greg, Cortese, JP, etc.)<br/>
                   <strong>Workout types:</strong> Any plain text (e.g., Gym, HIIT, Cardio, Activity, etc.)<br/>
-                  <strong>Duration:</strong> Any plain text (e.g., 45, 60, 30 minutes, etc.)<br/>
-                  <strong>Time format:</strong> HH:MM:SS (e.g., 09:00:00)<br/>
-                  <strong>Date format:</strong> YYYY-MM-DD (e.g., 2024-01-15)
+                  <strong>Duration:</strong> H:MM format (e.g., 0:53, 1:12)<br/>
+                  <strong>Time format:</strong> H:MM or HH:MM (e.g., 7:16, 20:47)<br/>
+                  <strong>Date format:</strong> M/D/YYYY (e.g., 1/13/2025)<br/>
+                  <strong>Separator:</strong> Tab-separated or comma-separated values accepted
                 </div>
               </div>
 
