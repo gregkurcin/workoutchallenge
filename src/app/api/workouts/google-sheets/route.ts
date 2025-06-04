@@ -9,6 +9,18 @@ export async function GET() {
     const SHEET_ID = process.env.GOOGLE_SHEET_ID
     const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Workouts'
     
+    // Debug environment variables
+    console.log('Environment variables check:', {
+      hasSheetId: !!SHEET_ID,
+      hasClientEmail: !!process.env.GOOGLE_CLIENT_EMAIL,
+      hasPrivateKey: !!process.env.GOOGLE_PRIVATE_KEY,
+      sheetId: SHEET_ID,
+      clientEmail: process.env.GOOGLE_CLIENT_EMAIL,
+      privateKeyLength: process.env.GOOGLE_PRIVATE_KEY?.length,
+      privateKeyStart: process.env.GOOGLE_PRIVATE_KEY?.substring(0, 30),
+      privateKeyFormat: process.env.GOOGLE_PRIVATE_KEY?.startsWith('-----BEGIN') ? 'PEM' : 'base64/other'
+    })
+    
     // Decode the base64-encoded private key from Vercel environment
     let privateKey = process.env.GOOGLE_PRIVATE_KEY
     
@@ -16,11 +28,25 @@ export async function GET() {
     if (privateKey && !privateKey.startsWith('-----BEGIN')) {
       try {
         privateKey = Buffer.from(privateKey, 'base64').toString('utf8')
+        console.log('Decoded base64 private key successfully')
       } catch (error) {
         console.error('Error decoding base64 private key:', error)
         throw new Error('Invalid private key format')
       }
     }
+    
+    // Handle escaped newlines
+    if (privateKey && privateKey.includes('\\n')) {
+      privateKey = privateKey.replace(/\\n/g, '\n')
+      console.log('Processed escaped newlines in private key')
+    }
+    
+    console.log('Final private key check:', {
+      startsWithBegin: privateKey?.startsWith('-----BEGIN'),
+      endsWithEnd: privateKey?.endsWith('-----END PRIVATE KEY-----'),
+      hasNewlines: privateKey?.includes('\n'),
+      lineCount: privateKey?.split('\n').length
+    })
     
     const auth = new google.auth.GoogleAuth({
       credentials: {
