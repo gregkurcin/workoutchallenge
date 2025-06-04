@@ -162,7 +162,7 @@ export const getWorkoutsByWeekForChart = (workouts: Workout[]) => {
     .sort((a, b) => {
       try {
         return new Date(a.week).getTime() - new Date(b.week).getTime()
-      } catch (error) {
+      } catch (_error) {
         return 0
       }
     })
@@ -174,7 +174,7 @@ export const getCumulativeWorkoutData = (workouts: Workout[]) => {
     .sort((a, b) => {
       try {
         return parseWorkoutDate(a.date).getTime() - parseWorkoutDate(b.date).getTime()
-      } catch (error) {
+      } catch (_error) {
         return 0
       }
     })
