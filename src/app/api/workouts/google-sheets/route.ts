@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getWorkouts } from '@/lib/googleSheets'
 import { google } from 'googleapis'
 
-// Trigger deployment with updated private key format - v2
+// Trigger deployment with updated private key format - v3 (CLI)
 export async function GET() {
   try {
     // First, let's get the raw data directly to debug
