@@ -204,13 +204,25 @@ export default function AdminPage() {
   const calculateDuration = (startTime: string, endTime: string): number => {
     if (!startTime || !endTime) return 0
     
-    const [startHour, startMin] = startTime.split(':').map(Number)
-    const [endHour, endMin] = endTime.split(':').map(Number)
+    // Handle both HH:MM:SS and HH:MM formats
+    const parseTime = (timeStr: string) => {
+      const parts = timeStr.split(':')
+      if (parts.length === 2) {
+        // HH:MM format
+        const [hour, min] = parts.map(Number)
+        return hour * 60 + min
+      } else if (parts.length === 3) {
+        // HH:MM:SS format
+        const [hour, min, sec] = parts.map(Number)
+        return hour * 60 + min + (sec / 60) // Convert seconds to fraction of minutes
+      }
+      return 0
+    }
     
-    const startMinutes = startHour * 60 + startMin
-    const endMinutes = endHour * 60 + endMin
+    const startMinutes = parseTime(startTime)
+    const endMinutes = parseTime(endTime)
     
-    return endMinutes - startMinutes
+    return Math.round(endMinutes - startMinutes)
   }
 
   const handleEditTimeChange = (field: 'startTime' | 'endTime', value: string) => {
@@ -266,10 +278,10 @@ export default function AdminPage() {
 
   const downloadCSVTemplate = () => {
     const csvContent = `personName,workoutType,startTime,endTime,duration,date
-Greg,Gym,09:00,09:45,45,2024-01-15
-Cortese,HIIT,18:00,18:30,30,2024-01-15
-Greg,Cardio,07:00,08:00,60,2024-01-16
-Cortese,Activity,12:00,12:25,25,2024-01-16`
+Greg,Gym,09:00:00,09:45:00,45,2024-01-15
+Cortese,HIIT,18:00:00,18:30:00,30,2024-01-15
+Greg,Cardio,07:00:00,08:00:00,60,2024-01-16
+Cortese,Activity,12:00:00,12:25:00,25,2024-01-16`
 
     const blob = new Blob([csvContent], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
@@ -285,31 +297,30 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
   const validateCSVRow = (row: Record<string, string>): CSVWorkout => {
     const errors: string[] = []
     
-    // Validate person name
-    if (!row.personName || !PERSON_NAMES.includes(row.personName as PersonName)) {
-      errors.push(`Invalid person name: ${row.personName}`)
+    // Validate person name (plain text - any value allowed)
+    if (!row.personName || row.personName.trim() === '') {
+      errors.push(`Person name is required`)
     }
     
-    // Validate workout type
-    if (!row.workoutType || !WORKOUT_TYPES.includes(row.workoutType as WorkoutType)) {
-      errors.push(`Invalid workout type: ${row.workoutType}`)
+    // Validate workout type (plain text - any value allowed)
+    if (!row.workoutType || row.workoutType.trim() === '') {
+      errors.push(`Workout type is required`)
     }
     
-    // Validate start time
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/
+    // Validate start time (HH:MM:SS format)
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/
     if (!row.startTime || !timeRegex.test(row.startTime)) {
-      errors.push(`Invalid start time: ${row.startTime} (use HH:MM format)`)
+      errors.push(`Invalid start time: ${row.startTime} (use HH:MM:SS format, e.g., 09:00:00)`)
     }
     
-    // Validate end time
+    // Validate end time (HH:MM:SS format)
     if (!row.endTime || !timeRegex.test(row.endTime)) {
-      errors.push(`Invalid end time: ${row.endTime} (use HH:MM format)`)
+      errors.push(`Invalid end time: ${row.endTime} (use HH:MM:SS format, e.g., 10:30:00)`)
     }
     
-    // Validate duration
-    const duration = parseInt(row.duration)
-    if (!duration || duration <= 0) {
-      errors.push(`Invalid duration: ${row.duration}`)
+    // Validate duration (plain text - any value allowed)
+    if (!row.duration || row.duration.trim() === '') {
+      errors.push(`Duration is required`)
     }
     
     // Validate date
@@ -318,12 +329,15 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
       errors.push(`Invalid date format: ${row.date} (use YYYY-MM-DD)`)
     }
 
+    // Convert duration to number for internal use, but keep original as string
+    const durationNum = parseInt(row.duration) || 0
+
     return {
-      personName: row.personName as PersonName || '',
-      workoutType: row.workoutType as WorkoutType || 'Activity',
+      personName: row.personName?.trim() as PersonName || '',
+      workoutType: row.workoutType?.trim() as WorkoutType || 'Activity',
       startTime: row.startTime || '',
       endTime: row.endTime || '',
-      duration: duration || 0,
+      duration: durationNum,
       date: row.date || '',
       isValid: errors.length === 0,
       errors
@@ -973,9 +987,10 @@ Cortese,Activity,12:00,12:25,25,2024-01-16`
                 </div>
                 <div className="mt-3 text-xs text-blue-600">
                   <strong>Required columns:</strong> personName, workoutType, startTime, endTime, duration, date<br/>
-                  <strong>Person names:</strong> {PERSON_NAMES.join(', ')}<br/>
-                  <strong>Workout types:</strong> {WORKOUT_TYPES.join(', ')}<br/>
-                  <strong>Time format:</strong> HH:MM (e.g., 09:00)<br/>
+                  <strong>Person names:</strong> Any plain text (e.g., Greg, Cortese, JP, etc.)<br/>
+                  <strong>Workout types:</strong> Any plain text (e.g., Gym, HIIT, Cardio, Activity, etc.)<br/>
+                  <strong>Duration:</strong> Any plain text (e.g., 45, 60, 30 minutes, etc.)<br/>
+                  <strong>Time format:</strong> HH:MM:SS (e.g., 09:00:00)<br/>
                   <strong>Date format:</strong> YYYY-MM-DD (e.g., 2024-01-15)
                 </div>
               </div>
