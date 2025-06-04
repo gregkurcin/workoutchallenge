@@ -31,21 +31,31 @@ export const getWorkouts = async (): Promise<Workout[]> => {
     })
 
     const rows = response.data.values
+    console.log('Raw Google Sheets data:', JSON.stringify(rows, null, 2))
+    console.log('Number of rows:', rows?.length || 0)
+    
     if (!rows || rows.length <= 1) {
+      console.log('No data rows found (only headers or empty)')
       return []
     }
 
     // Skip header row and map data to match user's sheet structure
-    return rows.slice(1).map((row, index): Workout => ({
-      id: `workout-${index}`,
-      personName: row[0] || '',
-      workoutType: (row[1] as WorkoutType) || 'Gym',
-      startTime: row[2] || '',
-      endTime: row[3] || '',
-      duration: parseInt(row[4]) || 0,
-      date: row[5] || '',
-      dayOfWeek: row[5] ? calculateDayOfWeek(row[5]) : '', // Calculate from date
-    }))
+    const workouts = rows.slice(1).map((row, index): Workout => {
+      console.log(`Processing row ${index}:`, row)
+      return {
+        id: `workout-${index}`,
+        personName: row[0] || '',
+        workoutType: (row[1] as WorkoutType) || 'Gym',
+        startTime: row[2] || '',
+        endTime: row[3] || '',
+        duration: parseInt(row[4]) || 0,
+        date: row[5] || '',
+        dayOfWeek: row[5] ? calculateDayOfWeek(row[5]) : '', // Calculate from date
+      }
+    })
+    
+    console.log('Processed workouts:', JSON.stringify(workouts, null, 2))
+    return workouts
   } catch (error) {
     console.error('Error fetching workouts:', error)
     return []

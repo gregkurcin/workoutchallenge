@@ -6,10 +6,17 @@ export async function GET() {
     // Load workouts from Google Sheets "Workouts" tab
     const workouts = await getWorkouts()
     
+    // Add debugging information
+    console.log('Raw workouts from Google Sheets:', JSON.stringify(workouts, null, 2))
+    
     return NextResponse.json({
       success: true,
       workouts,
-      message: `Loaded ${workouts.length} workouts from Google Sheets`
+      message: `Loaded ${workouts.length} workouts from Google Sheets`,
+      debug: {
+        totalWorkouts: workouts.length,
+        firstWorkout: workouts[0] || null
+      }
     })
   } catch (error) {
     console.error('Error loading from Google Sheets:', error)
